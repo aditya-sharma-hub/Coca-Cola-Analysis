@@ -1,33 +1,81 @@
-# 📈 Stock Price Prediction using Machine Learning
- # 🛠 Problem Description
-Accurately forecasting stock prices remains a significant challenge for researchers and financial analysts. Investors and stakeholders consistently seek reliable stock price prediction systems to inform investment decisions and gain insights into future market trends. However, the volatile and complex nature of financial markets makes this task inherently difficult.
+# 📈 Coca-Cola Stock Price Prediction using Machine Learning
 
-# 💡 Proposed Solution
-This project leverages multiple Machine Learning (ML) models to forecast stock prices:
-➡LSTM (Long Short-Term Memory) Networks 
+A comprehensive machine learning project that predicts future stock prices of **Coca-Cola (KO)** using historical time-series data and financial indicators. This end-to-end project covers data preprocessing, exploratory data analysis (EDA), feature engineering, model training, and evaluation.
 
-➡Support Vector Regressor (SVR)
+---
 
-➡Stochastic Gradient Descent (SGD) Regressor
+## 🚀 Project Highlights
 
-➡Random Forest Regressor
+- 📊 **EDA & Visualization**  
+  Analyze trends, moving averages, and volatility with rich visual insights.
 
-➡Decision Tree Regressor
+- 🛠️ **Feature Engineering**  
+  Constructed lag features, rolling statistics, and returns for model learning.
 
-The approach includes:-
-1. Utilizing historical stock price data and relevant financial indicators
-2. Data preprocessing and cleaning
-3. Performing Exploratory Data Analysis (EDA)
-4. Building predictive models
-        Comparing model performance using accuracy metrics
+- 🤖 **Modeling**  
+  Trained and evaluated:
+  - Linear Regression
+  - Random Forest Regressor
 
-# 🔍 Alternatives Considered
-To further enhance forecasting accuracy, exploration of the following models and techniques has been considered:
-ARIMA (AutoRegressive Integrated Moving Average)
-XGBoost (Extreme Gradient Boosting)
-Ensemble Methods
+- 📉 **Evaluation Metrics**  
+  Root Mean Squared Error (RMSE) used for performance comparison.
 
-# 📂 Dataset Source
-The historical stock price data used for this project was sourced from Kaggle
+- 🧪 **Ready for Expansion**  
+  Prepared for deep learning (LSTM), integration with financial indicators, and dashboard deployment (Streamlit).
 
-https://www.kaggle.com/datasets/meetnagadia/coco-cola-stock-data-19622021/data
+---
+
+## 📁 Dataset
+
+- `Coca-Cola_stock_history.csv`: Daily OHLCV stock data
+- `Coca-Cola_stock_info.csv`: Company financial attributes (for future use)
+
+---
+
+## 🔧 Tech Stack
+
+| Tool | Purpose |
+|------|---------|
+| Python | Programming Language |
+| Pandas, NumPy | Data Manipulation |
+| Matplotlib, Seaborn | Visualization |
+| Scikit-learn | Machine Learning |
+| Jupyter Notebook | Interactive Development |
+
+---
+
+## 📌 Key Features Engineered
+
+- `Close_Lag1`: Previous day closing price  
+- `Daily_Return`: Daily return percentage  
+- `Volatility`: 7-day rolling standard deviation  
+- `MA20`, `MA50`: 20 and 50-day moving averages  
+
+---
+
+## 📉 Results
+
+| Model | RMSE |
+|-------|------|
+| Linear Regression | ~🧮 (Displayed in Notebook) |
+| Random Forest | ~🧮 (Displayed in Notebook) |
+
+📌 *Random Forest outperformed Linear Regression in this project.*
+
+---
+
+## 🛠️ Future Work
+
+- Integrate LSTM or GRU models for sequence prediction  
+- Add macroeconomic or financial ratio features  
+- Build a Streamlit dashboard for interactive predictions  
+- Automate data fetching using APIs (e.g., Yahoo Finance)
+
+---
+
+## 🧠 Author
+
+**Aditya Sharma**  
+_Machine Learning Enthusiast | Data Science Explorer_
+
+---
