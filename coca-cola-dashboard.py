@@ -1,272 +1,467 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import timedelta
-import random
-import scipy.stats as stats 
-import seaborn as sns
-import matplotlib.pyplot as plt
+import os 
+import numpy as np
 
-# Use st.cache_data to run this expensive data simulation and feature 
-# engineering function only once, ensuring fast dashboard interactions.
+# --- 1. CONFIGURATION ---
+st.set_page_config(
+    page_title="Coca-Cola Stock Dashboard (KO)",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# --- 2. DATA LOADING & PREPROCESSING (Robust Code) ---
 @st.cache_data
-def load_and_engineer_data():
+def load_data():
     """
-    Simulates the Coca-Cola stock history and performs advanced feature engineering.
-    Features are based on the analysis in Coca_Cola_Project.ipynb.
+    Loads, cleans, and preprocesses the stock data and info data.
     """
-    # 1. Simulate a long time-series dataset (60+ years)
-    dates = pd.date_range(start='1962-01-02', periods=15311, freq='B') # Business days
-    initial_value = 0.05
-    time_index = np.arange(len(dates)) / len(dates) * 60 
     
-    # Exponential growth trend + noise
-    base_price = initial_value * np.exp(time_index * 0.1) 
-    noise = np.random.randn(len(dates)).cumsum() * 0.5
-    close_prices = base_price + noise
-    
-    # Simulate OHLC and Volume
-    open_prices = close_prices * (1 + np.random.uniform(-0.005, 0.005, len(dates)))
-    high_prices = np.maximum(close_prices, open_prices) * (1 + np.random.uniform(0.001, 0.005, len(dates)))
-    low_prices = np.minimum(close_prices, open_prices) * (1 - np.random.uniform(0.001, 0.005, len(dates)))
-    volume = np.random.randint(1_000_000, 30_000_000, len(dates)) * (1 + time_index/10)
+    HISTORY_FILE = "Coca-Cola_stock_history.csv"
+    INFO_FILE = "Coca-Cola_stock_info.csv"
 
-    # Simulate Dividends and Stock Splits
-    dividends = np.zeros(len(dates))
-    stock_splits = np.zeros(len(dates), dtype=int)
-    for i in random.sample(range(len(dates)), 200): 
-        dividends[i] = round(random.uniform(0.05, 0.44), 2)
-    for i in random.sample(range(len(dates)), 5):
-        if dates[i].year > 1980:
-            stock_splits[i] = random.choice([2, 3])
+    # In a real environment, we'd check existence, but here we assume based on context
+    
+    # Load historical data
+    df_history = pd.read_csv(HISTORY_FILE)
+    
+    # Date Conversion and Cleaning
+    df_history['Date'] = pd.to_datetime(df_history['Date'], errors='coerce')
+    df_history.dropna(subset=['Date'], inplace=True)
+    df_history['Date'] = df_history['Date'].dt.normalize().dt.date
+    df_history = df_history.set_index('Date').sort_index()
+    
+    # Ensure numerical columns are floats, excluding the index
+    for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+        df_history[col] = pd.to_numeric(df_history[col], errors='coerce').fillna(0)
 
-    df = pd.DataFrame({
-        'Date': dates,
-        'Open': open_prices.round(4),
-        'High': high_prices.round(4),
-        'Low': low_prices.round(4),
-        'Close': close_prices.round(4),
-        'Volume': volume.astype(int),
-        'Dividends': dividends,
-        'Stock Splits': stock_splits,
-    })
-    
-    # 2. Feature Engineering 
-    df['5_Day_SMA'] = df['Close'].rolling(window=5).mean().round(4)
-    df['Daily_Range'] = (df['High'] - df['Low']).round(4)
-    df['Daily_Returns'] = df['Close'].pct_change().round(6) 
-    
-    # Annualized Volatility
-    df['Annualized_Volatility'] = df['Daily_Returns'].rolling(window=252).std() * np.sqrt(252)
-    
-    # Volume Price Trend (VPT)
-    df['VPT'] = (df['Daily_Returns'] * df['Volume']).cumsum()
 
-    # Drop NaNs created by rolling windows
-    df.dropna(inplace=True) 
-    df['Date'] = pd.to_datetime(df['Date'])
-    
-    return df
+    # Load stock info
+    df_info = pd.read_csv(INFO_FILE, index_col='Key')
+    stock_info = df_info.to_dict()['Value']
 
-def create_dashboard():
-    # Streamlit configuration
-    st.set_page_config(layout="wide")
-    st.title("🥤 Coca-Cola (KO) Financial Dashboard")
-    st.markdown("***An dashboard showcasing quantitative analysis, feature engineering, and predictive modeling inputs.***")
+    # Convert ALL numeric info keys to float/int
+    numeric_keys = ['trailingPE', 'forwardPE', 'marketCap', 'fullTimeEmployees', 'payoutRatio']
+    for key in numeric_keys:
+        if key in stock_info:
+            converted_value = pd.to_numeric(stock_info[key], errors='coerce')
+            
+            if not np.isnan(converted_value):
+                stock_info[key] = converted_value
+            else:
+                stock_info[key] = 0.0
+        else:
+             stock_info[key] = 0.0
 
-    # Load data from cache
-    df = load_and_engineer_data()
+    return df_history, stock_info
 
-    # --- 1. Sidebar for Interactivity (Date Range) ---
-    st.sidebar.header("⚙️ Dashboard Controls")
-    
-    min_date = df['Date'].min().date()
-    max_date = df['Date'].max().date()
-    
-    date_range = st.sidebar.slider(
-        "Date Range Selection",
-        min_date,
-        max_date,
-        (min_date, max_date)  # Default to the full range
-    )
-    
-    start_date = pd.to_datetime(date_range[0])
-    end_date = pd.to_datetime(date_range[1])
+# Helper function for formatting currency (Price/Cap)
+def format_currency(num):
+    if num >= 1e12:
+        return f"${num/1e12:.2f}T"
+    elif num >= 1e9:
+        return f"${num/1e9:.2f}B"
+    elif num >= 1e6:
+        return f"${num/1e6:.2f}M"
+    return f"${num:,.2f}"
 
-    if start_date > end_date:
-        st.sidebar.error("Error: End Date must fall after Start Date.")
-        return
+# Helper function for formatting Volume
+def format_volume(num):
+    if num >= 1e12:
+        return f"{num/1e12:.2f}T"
+    elif num >= 1e9:
+        return f"{num/1e9:.2f}B"
+    elif num >= 1e6:
+        return f"{num/1e6:.2f}M"
+    return f"{num:,.0f}"
 
-    df_filtered = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)].copy()
+# --- PAGE FUNCTIONS ---
 
-    # --- 2. Data Preview and KPIs ---
+def dashboard_page(df_history, stock_info, df_filtered, date_range):
+    """The main interactive analysis dashboard."""
+    st.title("📈 Stock Analysis Dashboard")
+    st.markdown(f"**Coca-Cola (KO)** | Sector: {stock_info.get('sector', 'N/A')} | Industry: {stock_info.get('industry', 'N/A')}")
     
-    # NEW: Data Preview Button
-    if st.button("Preview Data (First 10 Rows)"):
-        st.dataframe(df_filtered.head(10).style.format(precision=4), use_container_width=True)
     
-    st.header("Key Investment & Risk Metrics")
+    # Key Financial Metrics (KPIs)
+    st.header("Key Period Indicators")
+    col1, col2, col3, col4, col5 = st.columns(5)
     
-    if not df_filtered.empty:
-        col1, col2, col3, col4 = st.columns(4)
-
-        initial_close = df_filtered.iloc[0]['Close']
-        final_close = df_filtered.iloc[-1]['Close']
-        price_change = (final_close - initial_close) / initial_close * 100
+    
+    # --- INTERACTIVE KPI LOGIC (Uses df_filtered) ---
+    if not df_filtered.empty and len(df_filtered) > 1:
+        # 1. Close Price (Interactive)
+        latest_close_filtered = df_filtered['Close'].iloc[-1]
+        starting_close_filtered = df_filtered['Close'].iloc[0]
+        price_delta_filtered = latest_close_filtered - starting_close_filtered
         
-        col1.metric("Start Close Price", f"${initial_close:,.2f}")
-        col2.metric("Period Return", f"{price_change:,.2f}%", f"{final_close - initial_close:,.2f}")
-        col3.metric("Avg Daily Volume", f"{df_filtered['Volume'].mean():,.0f}")
-        col4.metric("Current Annual Volatility", f"{df_filtered['Annualized_Volatility'].iloc[-1]*100:,.2f}%")
+        # 2. Total Period Return (Interactive)
+        total_period_return = (latest_close_filtered / starting_close_filtered) - 1
+        return_delta_color = "normal" if total_period_return >= 0 else "inverse"
+        
+        # 3. Period Volatility (Interactive)
+        df_filtered['Daily_Return'] = df_filtered['Close'].pct_change()
+        # Annualized Volatility (Std. Dev. * sqrt(252))
+        period_volatility = df_filtered['Daily_Return'].std() * np.sqrt(252) 
+        
+        # 4. Highest Volume (Interactive)
+        highest_volume = df_filtered['Volume'].max()
+        avg_volume_all_time = df_history['Volume'].mean()
+        volume_delta = highest_volume - avg_volume_all_time
+        
+        # Calculate Percentage Delta for Volume
+        if avg_volume_all_time > 0:
+            volume_percent_delta = (volume_delta / avg_volume_all_time) * 100
+            volume_delta_label = f"{volume_percent_delta:.2f}% vs Avg."
+        else:
+            volume_delta_label = "N/A"
+        
+        # 5. Trading Days (Interactive)
+        trading_days = len(df_filtered)
+        
+        # Determine color for the price delta based on gain/loss
+        delta_color = "normal" if price_delta_filtered >= 0 else "inverse"
+    else:
+        # Default zero/empty values if the filter range is too small or empty
+        latest_close_filtered = 0.0
+        price_delta_filtered = 0.0
+        total_period_return = 0.0
+        period_volatility = 0.0
+        highest_volume = 0
+        volume_delta = 0
+        volume_delta_label = "No Data"
+        trading_days = 0
+        delta_color = "off"
+        return_delta_color = "off"
+
+
+    # --- ENHANCED KPI DISPLAY using st.container() for the "box" effect ---
+    
+    # Metric 1: Period Close Price (Interactive)
+    with col1:
+        with st.container(border=True): 
+            st.metric(
+                label="Latest Close Price in Period", 
+                value=format_currency(latest_close_filtered),
+                delta=f"${price_delta_filtered:.2f} Change",
+                delta_color=delta_color
+            )
+    
+    # Metric 2: Total Period Return (Interactive)
+    with col2:
+        with st.container(border=True):
+            st.metric(
+                label="Total Period Return", 
+                value=f"{total_period_return:.2%}",
+                delta="Gain" if total_period_return >= 0 else "Loss",
+                delta_color=return_delta_color
+            )
+
+    # Metric 3: Period Volatility (Interactive)
+    with col3:
+        with st.container(border=True):
+            st.metric(
+                label="Period Volatility (Annualized)", 
+                value=f"{period_volatility:.2%}",
+                delta="Risk Measure",
+                delta_color="off"
+            )
+        
+    # Metric 4: Highest Volume in Period (Interactive)
+    with col4:
+        with st.container(border=True):
+            st.metric(
+                label="Highest Volume in Period", 
+                value=format_volume(highest_volume),
+                delta=volume_delta_label,
+                delta_color="normal" if volume_delta > 0 else "off"
+            )
+
+    # Metric 5: Total Trading Days (Interactive)
+    with col5:
+        with st.container(border=True):
+            st.metric(
+                label="Total Trading Days", 
+                value=f"{trading_days:,}",
+                delta=f"From {date_range[0]}",
+                delta_color="off"
+            )
 
     st.markdown("---")
 
-    # --- 3. Correlation Heatmap (NEW) ---
-    st.subheader("1. Feature Correlation Analysis (Heatmap) 🌡️")
-    st.caption("Visualizing collinearity between features, crucial for model selection (e.g., avoiding multicollinearity in linear models).")
-    
-    # Select relevant features for correlation analysis
-    corr_cols = ['Open', 'High', 'Low', 'Close', 'Volume', 'Daily_Returns', '5_Day_SMA', 'Daily_Range']
-    corr_df = df_filtered[corr_cols]
-    
-    # Calculate correlation matrix
-    corr_matrix = corr_df.corr().round(2)
-    
-    # Create the heatmap using Matplotlib and Seaborn for reliability
-    fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(
-        corr_matrix, 
-        annot=True, 
-        cmap='coolwarm', 
-        fmt=".2f", 
-        linewidths=.5, 
-        cbar_kws={'label': 'Correlation Coefficient'},
-        ax=ax
+    # Interactive Price Line Chart (Defaults to Close Price)
+    price_metric = 'Close'
+    st.header("Time Series Analysis")
+    st.subheader(f"Historical {price_metric} Price")
+    fig_price = px.line(
+        df_filtered, 
+        y=price_metric,
+        title=f'Coca-Cola {price_metric} Price Over Time ({date_range[0]} to {date_range[1]})',
+        labels={price_metric: f'{price_metric} Price ($)', 'Date': 'Date'},
+        height=500
     )
-    ax.set_title("Feature Correlation Matrix")
-    st.pyplot(fig, use_container_width=True)
+    fig_price.update_xaxes(rangeslider_visible=True)
+    st.plotly_chart(fig_price, use_container_width=True)
 
     st.markdown("---")
 
-    # --- 4. Price and Trend Charts (Retained) ---
-    st.subheader("2. Price Action and Trend Analysis 📈")
-    
-    fig_price = go.Figure()
-    
-    fig_price.add_trace(go.Candlestick(
-        x=df_filtered['Date'],
+    # Trading Volume Chart
+    st.subheader("Trading Volume")
+    fig_volume = px.area(
+        df_filtered, 
+        y='Volume',
+        title='Daily Trading Volume',
+        labels={'Volume': 'Volume'},
+        height=400
+    )
+    st.plotly_chart(fig_volume, use_container_width=True)
+
+    st.markdown("---")
+
+    # Candlestick Chart (Advanced View)
+    st.header("Advanced Chart ")
+    fig_candle = go.Figure(data=[go.Candlestick(
+        x=df_filtered.index, 
         open=df_filtered['Open'],
         high=df_filtered['High'],
         low=df_filtered['Low'],
         close=df_filtered['Close'],
-        name='Price OHLC',
-        increasing_line_color='#00CC96', 
-        decreasing_line_color='#EF553B' 
-    ))
+        name="KO"
+    )])
+    fig_candle.update_layout(
+        title=f'Coca-Cola Candlestick Chart ({date_range[0]} to {date_range[1]})',
+        xaxis_title='Date',
+        yaxis_title='Price ($)',
+        xaxis_rangeslider_visible=False 
+    )
+    st.plotly_chart(fig_candle, use_container_width=True)
 
-    fig_price.add_trace(go.Scatter(
-        x=df_filtered['Date'], 
-        y=df_filtered['5_Day_SMA'], 
-        mode='lines', 
-        name='5-Day SMA',
-        line=dict(color='#E50000', width=2) # Coca-Cola Red
-    ))
+
+def prediction_page(df_history, df_filtered, date_range):
+    """Machine Learning Prediction and Strategy Backtesting Page."""
+    st.title("🤖 ML Prediction & Trading Strategy")
+    st.markdown(f"Visualizing simulated ML performance and strategy over the period: **{date_range[0]} to {date_range[1]}**.")
+
+    # --- SIMULATE ML PREDICTION DATA (using df_filtered) ---
+    st.header("Prediction vs. Actual ")
+    st.info("The prediction simulation compares actual prices with model predictions over the selected date range.")
+
+    df_test_sim = df_filtered.copy()
     
-    fig_price.update_layout(
-        xaxis_title="Date",
-        yaxis_title="Price ($)",
-        height=450,
-        xaxis_rangeslider_visible=False,
+    # If the filtered data is too short, we can't show predictions/strategy
+    if len(df_test_sim) < 2:
+        st.warning("Please select a date range with at least two trading days to view ML simulations.")
+        return
+
+    # Simulate a 'Predicted Close' column by shifting Actual Close and adding noise
+    np.random.seed(42) # for reproducibility
+    # Calculate noise based on the length of the filtered data
+    noise = np.random.normal(0, 0.005, len(df_test_sim)) # 0.5% standard deviation noise
+    df_test_sim['Predicted Close'] = df_test_sim['Close'].shift(-1) * (1 + noise)
+    
+    # Drop the last row which will contain NaN after the shift/noise simulation
+    df_test_sim.dropna(subset=['Predicted Close'], inplace=True)
+
+    df_plot_pred = df_test_sim[['Close', 'Predicted Close']]
+    
+    fig_pred = px.line(
+        df_plot_pred,
+        title=f'Actual vs. Predicted Close Price ({date_range[0]} to {date_range[1]})',
+        labels={'value': 'Price ($)', 'Date': 'Date'},
+        height=500
+    )
+    fig_pred.update_layout(yaxis_title='Price ($)')
+    st.plotly_chart(fig_pred, use_container_width=True)
+    
+    # --- SIMULATE TRADING STRATEGY RETURNS ---
+
+    st.markdown("---")
+    st.header("Strategy Performance Comparison")
+    st.info("Simulated strategy returns vs. Buy-and-Hold over the selected period.")
+
+    df_returns = df_filtered.copy()
+    
+    # Market (Buy-and-Hold) Strategy
+    df_returns['Daily_Return_Market'] = df_returns['Close'].pct_change().fillna(0)
+    df_returns['Market_Return'] = (df_returns['Daily_Return_Market'] + 1).cumprod()
+    
+    # Simulated Trading Strategy (Assume strategy performs slightly better, e.g., 20% Alpha on daily returns)
+    df_returns['Daily_Return_Strategy'] = df_returns['Daily_Return_Market'] * 1.2
+    df_returns['Strategy_Return'] = (df_returns['Daily_Return_Strategy'] + 1).cumprod()
+    
+    df_returns.dropna(subset=['Market_Return', 'Strategy_Return'], inplace=True)
+    
+    # Calculate Final Returns for display
+    final_market_return = df_returns['Market_Return'].iloc[-1] if not df_returns.empty else 1
+    final_strategy_return = df_returns['Strategy_Return'].iloc[-1] if not df_returns.empty else 1
+    
+    fig_strat = px.line(
+        df_returns[['Market_Return', 'Strategy_Return']],
+        title=f'Cumulative Returns: Custom Strategy vs. Market ({date_range[0]} to {date_range[1]})',
+        labels={'value': 'Cumulative Return Factor', 'Date': 'Date'},
+        height=500
+    )
+    fig_strat.update_layout(yaxis_title='Cumulative Return Factor')
+    st.plotly_chart(fig_strat, use_container_width=True)
+    
+    st.markdown(
+        f"""
+        **Key Metrics (Simulation over selected period)**
+        * **Strategy Final Return Factor:** {final_strategy_return:.2f}x
+        * **Buy-and-Hold Final Return Factor (Market):** {final_market_return:.2f}x
+        """
     )
 
-    st.plotly_chart(fig_price, use_container_width=True)
-    
-    st.markdown("---")
-    
-    col_left, col_mid, col_right = st.columns(3)
-    
-    # --- 5. Annualized Volatility (Risk Analysis) ---
-    with col_left:
-        st.subheader("3. Annualized Volatility (Risk)")
-        
-        fig_vol = px.area(
-            df_filtered, 
-            x='Date', 
-            y='Annualized_Volatility', 
-            title='252-Day Rolling Volatility',
-            color_discrete_sequence=['#FF8C00'] # Orange for Risk
-        )
-        fig_vol.update_traces(fill='tozeroy', line_color='#FF8C00')
-        fig_vol.update_layout(yaxis_title="Annualized Std Dev", height=350)
-        st.plotly_chart(fig_vol, use_container_width=True)
 
-    # --- 6. Volume Price Trend (VPT) ---
-    with col_mid:
-        st.subheader("4. Volume Price Trend (VPT)")
-        
-        fig_vpt = px.line(
-            df_filtered, 
-            x='Date', 
-            y='VPT', 
-            title='Volume Price Trend (VPT)',
-            color_discrete_sequence=['#1E90FF'] # Blue for Momentum
-        )
-        fig_vpt.update_layout(yaxis_title="VPT Value", height=350)
-        st.plotly_chart(fig_vpt, use_container_width=True)
-        
-    # --- 7. Distribution of Daily Returns ---
-    with col_right:
-        st.subheader("5. Distribution of Daily Returns")
-        
-        returns = df_filtered['Daily_Returns'].dropna()
+def info_page(stock_info, df_filtered, date_range):
+    """Page for project context and insights."""
+    st.title("ℹ️ Project Information & Insights")
+    st.markdown("Context and key information extracted from the project files.")
+    
+    st.header("📈 Selected Period Summary (Interactive)")
+    
+    
+    # --- INTERACTIVE METRICS FOR INFO PAGE ---
+    if not df_filtered.empty:
+        period_high = df_filtered['High'].max()
+        period_low = df_filtered['Low'].min()
+        period_avg_close = df_filtered['Close'].mean()
+        period_avg_volume = df_filtered['Volume'].mean()
+    else:
+        period_high = 0.0
+        period_low = 0.0
+        period_avg_close = 0.0
+        period_avg_volume = 0.0
 
-        # 1. Create Histogram
-        fig_dist = go.Figure(data=[go.Histogram(
-            x=returns,
-            histnorm='probability density',
-            name='Returns Distribution',
-            marker_color='#00CC96',
-            nbinsx=50
-        )])
-        
-        # 2. Manually calculate and add KDE
-        if len(returns) > 1:
-            x_range = np.linspace(returns.min(), returns.max(), 500)
-            kde = stats.gaussian_kde(returns)
-            y_kde = kde.evaluate(x_range)
+    col_info_1, col_info_2, col_info_3, col_info_4, col_info_5 = st.columns(5)
+    
+    with col_info_1:
+        with st.container(border=True):
+            st.metric(
+                label="Start Date",
+                value=f"{date_range[0]}"
+            )
+    
+    with col_info_2:
+        with st.container(border=True):
+            st.metric(
+                label="End Date",
+                value=f"{date_range[1]}"
+            )
+    
+    with col_info_3:
+        with st.container(border=True):
+            st.metric(
+                label="Average Close Price",
+                value=format_currency(period_avg_close)
+            )
+
+    with col_info_4:
+        with st.container(border=True):
+            st.metric(
+                label="High Price in Period",
+                value=format_currency(period_high)
+            )
+
+    with col_info_5:
+        with st.container(border=True):
+            st.metric(
+                label="Average Volume",
+                value=format_volume(period_avg_volume)
+            )
             
-            fig_dist.add_trace(go.Scatter(
-                x=x_range,
-                y=y_kde,
-                mode='lines',
-                name='KDE',
-                line=dict(color='black', width=2)
-            ))
-        
-        fig_dist.update_layout(
-            yaxis_title="Probability Density", 
-            xaxis_title="Daily Return (Change in Close)",
-            height=350,
-            showlegend=False,
-            title='Histogram & KDE of Daily Returns'
-        )
-        st.plotly_chart(fig_dist, use_container_width=True)
+    st.markdown("---")
 
+    # --- STATIC COMPANY CONTEXT ---
+    st.header("Company & Project Context ")
+    
+    # Use the exact static values requested by the user
+    market_cap_val = 257440000000 # To properly use the formatter for $257.44B
+    trailingPE_val = 29.35
+    forwardPE_val = 24.53
+    payoutRatio_val = 0.8227 # 82.27%
+    employees_val = 80300
+    
+    col_static_1, col_static_2 = st.columns(2)
+    
+    with col_static_1:
+        st.subheader("Static Company Financials")
+        st.markdown(
+            f"""
+            * **Market Capitalization:** `{format_currency(market_cap_val)}`
+            * **P/E Ratio (Trailing):** `{trailingPE_val:.2f}`
+            * **Forward P/E Ratio:** `{forwardPE_val:.2f}`
+            * **Payout Ratio:** `{payoutRatio_val:.2%}`
+            """
+        )
+    
+    with col_static_2:
+        st.subheader("Company Profile")
+        st.markdown(
+            f"""
+            * **Sector:** `Consumer Defensive`
+            * **Industry:** `Beverages—Non-Alcoholic`
+            * **Employees:** `{employees_val:,.0f}`
+            * **The historical data spans from 1962 to the last record in the dataset.**
+            """
+        )
 
     st.markdown("---")
+
+    st.header("Project & ML Details ")
+    st.subheader("ML Project Steps (from Notebook Analysis)")
+    st.markdown("The analysis focused on predicting the next day's close price. Key steps included:")
+    st.markdown(
+        """
+        1.  **Exploratory Data Analysis (EDA):** Initial inspection of 15,311 entries.
+        2.  **Feature Engineering:** Creating lagged features (e.g., prior day's price) and a target variable (next day's close).
+        3.  **Data Split:** Chronological split into **Training (80%)** and **Testing (20%)** sets.
+        4.  **Modeling:** Training a **Linear Regression** model.
+        5.  **Evaluation:** Measuring performance using MSE, RMSE, and R-squared.
+        6.  **Trading Strategy:** Developing a simple prediction-based strategy and comparing its cumulative returns against a Buy-and-Hold benchmark.
+        """
+    )
     
-    # --- 8. Data Science Pipeline Summary ---
-    st.header("💡 Summary")
-    st.info(f"""
-    This dashboard demonstrates the full analytical lifecycle for a time-series project:
+# --- MAIN APPLICATION LOGIC ---
+
+def main():
+    df_history, stock_info = load_data()
+
+    if df_history is None:
+        st.error("Data files not loaded. Please ensure both 'Coca-Cola_stock_history.csv' and 'Coca-Cola_stock_info.csv' are available.")
+        return
+
+    # Get min/max dates for filter control
+    dates = df_history.index
+    min_date = min(dates)
+    max_date = max(dates)
     
-    1.  **Data Quality**: Shown via the **Preview Button** and initial **KPIs**.
-    2.  **Feature Engineering**: Creation and visualization of features like **5-Day SMA**, **Daily Range**, and **Annualized Volatility**.
-    3.  **Exploratory Data Analysis (EDA)**: Visualized through the **Correlation Heatmap** and **Daily Returns Distribution** (checking for normality/risk).
-    4.  **Model Readiness**: Data is ready for **Data Splitting** (80% Train / 20% Test) and **Feature Scaling** (**StandardScaler**).
-    """)
+    # Sidebar Navigation
+    st.sidebar.title("Coca-Cola Stock Project")
+    page = st.sidebar.radio("Navigation", ["Dashboard", "ML Prediction", "Project Info"])
+
+    # --- GLOBAL DATE FILTER (Moved to Main) ---
+    st.sidebar.header("Date Filter")
+    date_range = st.sidebar.slider(
+        "Select Date Range",
+        min_value=min_date,
+        max_value=max_date,
+        value=(min_date, max_date),
+        format="YYYY-MM-DD"
+    )
+    
+    # Filter DataFrame once in main
+    df_filtered = df_history.loc[date_range[0]:date_range[1]].copy()
+    # ----------------------------------------
+
+    if page == "Dashboard":
+        dashboard_page(df_history, stock_info, df_filtered, date_range)
+    elif page == "ML Prediction":
+        prediction_page(df_history, df_filtered, date_range)
+    elif page == "Project Info":
+        info_page(stock_info, df_filtered, date_range)
 
 if __name__ == "__main__":
-    create_dashboard()
+    main()
