@@ -1,4 +1,4 @@
-# 📈 Coca-Cola Stock Price Prediction & Time-Series Intelligence System
+# 📈 Coca-Cola Stock Price Prediction System
 
 <p align="center">
   <img src="https://img.shields.io/badge/Built%20With-Python-blue?style=for-the-badge&logo=python">
@@ -81,7 +81,7 @@ Description:
    - Compares against:
        - 🟢 Model-driven strategy returns
        - ⚪ Buy-and-hold benchmark
-       - 
+         
 ### Key Insights:
 - Evaluates model effectiveness in real-world trading scenarios
 - Highlights cumulative returns and performance gaps
@@ -89,6 +89,33 @@ Description:
 * 👉 Bridges the gap between prediction → actionable financial strategy*
 ---
 
+### *📌 3️⃣ Project Context & Financial Insights*
+<p align="center"> <img src="assets/coca-3.png" width="90%"> </p>
+Description:
+
+> - Provides contextual and structural understanding of the project
+> - Sections include:
+>     - 📊 Company Profile
+>     - 🧠 ML Pipeline Summary
+
+- 📊 Company Profile:
+   - Sector, industry, and metadata placeholders
+   - Dataset time coverage (1962–2022)
+
+- 🧠 ML Pipeline Summary
+  - End-to-end workflow:
+    
+    
+    -  1. Exploratory Data Analysis
+    -  2. Feature Engineering (lag features, returns)
+    -  3. Train-test split (time-series aware)
+    -  4. Model training (Linear Regression)
+    -  5. Evaluation (RMSE, R²)
+    -  6. Strategy simulation
+
+
+* 👉 Acts as a documentation layer explaining methodology + assumptions*
+---
 
 
 
