@@ -222,3 +222,42 @@ Constructed predictive features from raw price signals:
 │   ├── price_trend.png
 │   └── volatility_plot.png
 ├── README.md
+```
+
+
+### 💪 Strengths
+- Strong feature engineering for time-series
+- Scalable for advanced forecasting systems
+
+---
+
+### 🔮 Future Enhancements
+- Deep learning models (LSTM / GRU)
+- Integration of:
+   - Macroeconomic indicators
+   - News sentiment analysis
+- Hyperparameter tuning
+
+---
+
+## 🎯 Key Takeaways
+
+> **This project demonstrates how historical stock data can be transformed into a predictive modeling system using feature engineering and machine learning techniques.**
+
+- Lag features capture temporal dependencies
+- Rolling statistics encode trend and volatility
+- Ensemble models improve prediction performance
+- Financial data benefits from non-linear modeling approaches
+---
+
+
+---
+## 🧠 Author
+**Aditya Sharma**
+Machine Learning Enthusiast | Data Science Explorer
+
+---
+⭐ If you found this project insightful, consider starring the repository.
+---
+
+
