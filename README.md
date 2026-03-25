@@ -250,8 +250,6 @@ Constructed predictive features from raw price signals:
 - Financial data benefits from non-linear modeling approaches
 ---
 
-
----
 ## 🧠 Author
 **Aditya Sharma**
 Machine Learning Enthusiast | Data Science Explorer
