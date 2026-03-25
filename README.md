@@ -48,19 +48,49 @@ This project transforms historical stock data into a **predictive intelligence s
 
 ## 📊 Sample Visualizations
 
-<p align="center">
-  <img src="assets/price_trend.png" width="85%">
-  <br>
-  <em>Stock price trends with moving averages highlighting long-term patterns</em>
-</p>
+### *📌 1️⃣ Sales Performance & Market Overview*
+<p align="center"> <img src="assets/coca-1.png" width="90%"> </p>
+Description:
 
-<p align="center">
-  <img src="assets/volatility_plot.png" width="85%">
-  <br>
-  <em>Volatility clustering and rolling standard deviation analysis</em>
-</p>
+> Displays overall Coca-Cola stock performance across the full historical timeline 
 
+### Key KPIs
+- Latest closing price
+- Period high & low
+- Average trading volume
+- Includes:
+   - 📈 Long-term price trend visualization
+   - 📊 Moving averages (20-day & 50-day) for trend detection
+   - 📉 Trading volume analysis to identify market activity spikes
+   - 📦 Price distribution histogram to understand price frequency
+
+* 👉 Provides a macro-level understanding of market behavior, trends, and volatility *
 ---
+
+### *📌 2️⃣ ML Prediction & Trading Strategy*
+<p align="center"> <img src="assets/coca-2.png" width="90%"> </p>
+Description:
+
+> - Compares actual vs predicted stock prices using machine learning models
+> - Demonstrates:
+>     - 📉 Model accuracy over time
+>     - 📈 Ability to capture long-term trends
+
+- Strategy Analysis:
+   - Simulates a prediction-based trading strategy
+   - Compares against:
+       - 🟢 Model-driven strategy returns
+       - ⚪ Buy-and-hold benchmark
+       - 
+### Key Insights:
+- Evaluates model effectiveness in real-world trading scenarios
+- Highlights cumulative returns and performance gaps
+
+* 👉 Bridges the gap between prediction → actionable financial strategy*
+---
+
+
+
 
 ## 🗂️ Dataset Description
 
